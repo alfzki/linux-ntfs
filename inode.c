@@ -989,22 +989,17 @@ view_index_meta:
 		 * encrypted. However index root cannot be both compressed and
 		 * encrypted.
 		 */
-		if (a->flags & ATTR_COMPRESSION_MASK) {
-			NInoSetCompressed(ni);
+		if (a->flags & ATTR_COMPRESSION_MASK)
 			ni->flags |= FILE_ATTR_COMPRESSED;
-		}
 		if (a->flags & ATTR_IS_ENCRYPTED) {
 			if (a->flags & ATTR_COMPRESSION_MASK) {
 				ntfs_error(vi->i_sb, "Found encrypted and compressed attribute.");
 				goto unm_err_out;
 			}
-			NInoSetEncrypted(ni);
 			ni->flags |= FILE_ATTR_ENCRYPTED;
 		}
-		if (a->flags & ATTR_IS_SPARSE) {
-			NInoSetSparse(ni);
+		if (a->flags & ATTR_IS_SPARSE)
 			ni->flags |= FILE_ATTR_SPARSE_FILE;
-		}
 		ir = (struct index_root *)((u8 *)a +
 				le16_to_cpu(a->data.resident.value_offset));
 		if (ntfs_index_root_inconsistent(ni->vol, a, ir, ni->mft_no) ||

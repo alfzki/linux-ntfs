@@ -455,10 +455,11 @@ int ntfs_getattr(struct user_namespace *mnt_userns, const struct path *path,
 	stat->result_mask |= STATX_BTIME;
 	stat->btime = NTFS_I(inode)->i_crtime;
 
-	if (NInoCompressed(ni) || NInoWofCompressed(ni))
+	if (NInoCompressed(ni) || NInoWofCompressed(ni) ||
+	    (ni->flags & FILE_ATTR_COMPRESSED))
 		stat->attributes |= STATX_ATTR_COMPRESSED;
 
-	if (NInoEncrypted(ni))
+	if (NInoEncrypted(ni) || (ni->flags & FILE_ATTR_ENCRYPTED))
 		stat->attributes |= STATX_ATTR_ENCRYPTED;
 
 	if (inode->i_flags & S_IMMUTABLE)

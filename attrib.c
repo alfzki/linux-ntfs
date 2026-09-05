@@ -2200,7 +2200,8 @@ int ntfs_attr_make_non_resident(struct ntfs_inode *ni, const u32 data_size)
 		ni->runlist.count = 0;
 	write_lock_irqsave(&ni->size_lock, flags);
 	ni->allocated_size = new_size;
-	if ((NInoSparse(ni) && !NInoWofCompressed(ni)) || NInoCompressed(ni)) {
+	if (((NInoSparse(ni) && !NInoWofCompressed(ni)) || NInoCompressed(ni)) &&
+	    ni->type == AT_DATA) {
 		ni->itype.compressed.size = ni->allocated_size;
 		if (a->data.non_resident.compression_unit) {
 			ni->itype.compressed.block_size = 1U <<
@@ -3870,7 +3871,7 @@ static int ntfs_attr_update_meta(struct attr_record *a, struct ntfs_inode *ni,
 	}
 
 	/* Update compressed size if required. */
-	if (NInoFullyMapped(ni) && (sparse || NInoCompressed(ni))) {
+	if (NInoFullyMapped(ni) && (sparse || NInoCompressed(ni)) && ni->type == AT_DATA) {
 		s64 new_compr_size;
 
 		new_compr_size = ntfs_rl_get_compressed_size(ni->vol, ni->runlist.rl);
@@ -3883,7 +3884,7 @@ static int ntfs_attr_update_meta(struct attr_record *a, struct ntfs_inode *ni,
 		a->data.non_resident.compressed_size = cpu_to_le64(new_compr_size);
 	}
 
-	if (NInoSparse(ni) || NInoCompressed(ni))
+	if ((NInoSparse(ni) || NInoCompressed(ni)) && ni->type == AT_DATA)
 		VFS_I(base_ni)->i_blocks = ni->itype.compressed.size >> 9;
 	else
 		VFS_I(base_ni)->i_blocks = ni->allocated_size >> 9;
@@ -4128,7 +4129,7 @@ retry:
 		if (!err) {
 			a = ctx->attr;
 			a->data.non_resident.allocated_size = cpu_to_le64(ni->allocated_size);
-			if (NInoCompressed(ni) || NInoSparse(ni))
+			if ((NInoCompressed(ni) || NInoSparse(ni)) && ni->type == AT_DATA)
 				a->data.non_resident.compressed_size =
 					cpu_to_le64(ni->itype.compressed.size);
 			/* Updating sizes taints the extent holding the attr */
@@ -4893,7 +4894,7 @@ attr_resize_again:
 			/* Update attribute size everywhere. */
 			attr_ni->data_size = attr_ni->initialized_size = newsize;
 			attr_ni->allocated_size = (newsize + 7) & ~7;
-			if (NInoCompressed(attr_ni) || NInoSparse(attr_ni))
+			if ((NInoCompressed(attr_ni) || NInoSparse(attr_ni)) && attr_ni->type == AT_DATA)
 				attr_ni->itype.compressed.size = attr_ni->allocated_size;
 			if (attr_ni->type == AT_DATA && attr_ni->name == AT_UNNAMED)
 				NInoSetFileNameDirty(attr_ni);
