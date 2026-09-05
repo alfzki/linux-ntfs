@@ -660,10 +660,8 @@ static struct lock_class_key ntfs_dir_inval_lock_key;
 void ntfs_set_vfs_operations(struct inode *inode, mode_t mode, dev_t dev)
 {
 	if (S_ISDIR(mode)) {
-		if (!NInoAttr(NTFS_I(inode))) {
-			inode->i_op = &ntfs_dir_inode_ops;
-			inode->i_fop = &ntfs_dir_ops;
-		}
+		inode->i_op = &ntfs_dir_inode_ops;
+		inode->i_fop = &ntfs_dir_ops;
 		inode->i_mapping->a_ops = &ntfs_aops;
 		lockdep_set_class(&inode->i_mapping->invalidate_lock,
 				  &ntfs_dir_inval_lock_key);
@@ -674,10 +672,8 @@ void ntfs_set_vfs_operations(struct inode *inode, mode_t mode, dev_t dev)
 		inode->i_op = &ntfs_special_inode_operations;
 		init_special_inode(inode, inode->i_mode, dev);
 	} else {
-		if (!NInoAttr(NTFS_I(inode))) {
-			inode->i_op = &ntfs_file_inode_ops;
-			inode->i_fop = &ntfs_file_ops;
-		}
+		inode->i_op = &ntfs_file_inode_ops;
+		inode->i_fop = &ntfs_file_ops;
 		if (inode->i_ino == FILE_MFT)
 			inode->i_mapping->a_ops = &ntfs_mft_aops;
 		else
@@ -1136,6 +1132,12 @@ view_index_meta:
 				goto no_data_attr_special_case;
 			}
 
+			if (NInoWofCompressed(ni)) {
+				vi->i_size = ni->data_size = ni->initialized_size = 0;
+				ni->allocated_size = 0;
+				goto wof_size_fallback;
+			}
+
 			err = extend_sys;
 			ntfs_error(vi->i_sb, "$DATA attribute is missing, err : %d", err);
 			goto unm_err_out;
@@ -1143,12 +1145,7 @@ view_index_meta:
 		a = ctx->attr;
 		/* Setup the state. */
 		if (a->flags & (ATTR_COMPRESSION_MASK | ATTR_IS_SPARSE)) {
-			if (a->flags & ATTR_COMPRESSION_MASK) {
-				if (NInoWofCompressed(ni)) {
-					ntfs_error(vi->i_sb,
-						"Found native compression on a WOF file.");
-					goto unm_err_out;
-				}
+			if ((a->flags & ATTR_COMPRESSION_MASK) && !NInoWofCompressed(ni)) {
 				NInoSetCompressed(ni);
 				ni->flags |= FILE_ATTR_COMPRESSED;
 				if (vol->cluster_size > 4096) {
@@ -1238,6 +1235,27 @@ view_index_meta:
 				ntfs_error(vi->i_sb,
 					"Resident data attribute is corrupt (size exceeds allocation).");
 				goto unm_err_out;
+			}
+		}
+wof_size_fallback:
+		if (NInoWofCompressed(ni) && vi->i_size == 0) {
+			struct attr_record *fn_a;
+			struct file_name_attr *fn;
+
+			ntfs_attr_reinit_search_ctx(ctx);
+			while (!ntfs_attr_lookup(AT_FILE_NAME, NULL, 0, 0, 0, NULL, 0, ctx)) {
+				fn_a = ctx->attr;
+				if (fn_a->non_resident)
+					continue;
+				fn = (struct file_name_attr *)((u8 *)fn_a +
+					le16_to_cpu(fn_a->data.resident.value_offset));
+				if (fn->data_size) {
+					vi->i_size = ni->data_size = ni->initialized_size =
+						le64_to_cpu(fn->data_size);
+					ni->allocated_size = le64_to_cpu(fn->allocated_size);
+					if (fn->file_name_type != FILE_NAME_DOS)
+						break;
+				}
 			}
 		}
 no_data_attr_special_case:
