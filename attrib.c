@@ -711,12 +711,23 @@ static bool ntfs_non_resident_attr_value_is_valid(const struct attr_record *a)
 	u32 name_end;
 
 	attr_len = le32_to_cpu(a->length);
-	min_len = offsetof(struct attr_record, data.non_resident.initialized_size) +
-		  sizeof(a->data.non_resident.initialized_size);
 
-	/* Sparse and compressed attributes have the extra compressed_size field */
-	if (a->flags & (ATTR_IS_SPARSE | ATTR_COMPRESSION_MASK))
-		min_len += sizeof(a->data.non_resident.compressed_size);
+	if (a->data.non_resident.lowest_vcn) {
+		/*
+		 * Extent records (lowest_vcn != 0) do not contain allocated_size,
+		 * data_size, initialized_size, or compressed_size.
+		 * Their fixed header ends after mapping_pairs_offset.
+		 */
+		min_len = offsetof(struct attr_record, data.non_resident.mapping_pairs_offset) +
+			  sizeof(a->data.non_resident.mapping_pairs_offset);
+	} else {
+		min_len = offsetof(struct attr_record, data.non_resident.initialized_size) +
+			  sizeof(a->data.non_resident.initialized_size);
+
+		/* Sparse and compressed attributes have the extra compressed_size field */
+		if (a->flags & (ATTR_IS_SPARSE | ATTR_COMPRESSION_MASK))
+			min_len += sizeof(a->data.non_resident.compressed_size);
+	}
 
 	if (attr_len < min_len)
 		return false;
@@ -735,12 +746,6 @@ static bool ntfs_non_resident_attr_value_is_valid(const struct attr_record *a)
 		if (name_end > attr_len || name_end > mp_offset)
 			return false;
 	}
-
-	/* Ensure there's room for the compressed_size field if needed. */
-	if (!(a->flags & (ATTR_IS_SPARSE | ATTR_COMPRESSION_MASK)) &&
-	    attr_len - mp_offset <
-			sizeof(a->data.non_resident.compressed_size))
-		return false;
 
 	return true;
 }

@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 
 ifneq ($(KERNELRELEASE),)
+CONFIG_NTFS_FS ?= m
+CONFIG_NTFS_FS_WOF_COMPRESSION ?= y
 obj-$(CONFIG_NTFS_FS) += ntfs.o
 
 ntfs-y := aops.o attrib.o collate.o dir.o file.o index.o inode.o \
@@ -13,6 +15,7 @@ ntfs-$(CONFIG_NTFS_FS_WOF_COMPRESSION) += wof.o \
 
 ccflags-$(CONFIG_NTFS_DEBUG) += -DDEBUG
 ccflags-y += -DCONFIG_NTFS_FS_POSIX_ACL
+ccflags-$(CONFIG_NTFS_FS_WOF_COMPRESSION) += -DCONFIG_NTFS_FS_WOF_COMPRESSION=1
 else
 # Called from external kernel module build
 
@@ -41,6 +44,24 @@ uninstall:
 	rm -rf ${MDIR}/kernel/fs/ntfs
 	depmod -aq
 
+PACKAGE_NAME ?= ntfs
+PACKAGE_VERSION ?= 1.0
+SRC_DIR ?= /usr/src/$(PACKAGE_NAME)-$(PACKAGE_VERSION)
+
+dkms_install dkms-install:
+	dkms remove -m $(PACKAGE_NAME) -v $(PACKAGE_VERSION) --all || true
+	rm -rf $(SRC_DIR)
+	mkdir -p $(SRC_DIR)
+	cp -r * $(SRC_DIR)/
+	$(MAKE) -C $(SRC_DIR) clean || true
+	dkms add -m $(PACKAGE_NAME) -v $(PACKAGE_VERSION)
+	dkms build -m $(PACKAGE_NAME) -v $(PACKAGE_VERSION)
+	dkms install -m $(PACKAGE_NAME) -v $(PACKAGE_VERSION)
+
+dkms_uninstall dkms-uninstall:
+	dkms remove -m $(PACKAGE_NAME) -v $(PACKAGE_VERSION) --all || true
+	rm -rf $(SRC_DIR)
+
 endif
 
-.PHONY : all clean install uninstall
+.PHONY : all clean install uninstall dkms_install dkms_uninstall dkms-install dkms-uninstall

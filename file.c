@@ -788,7 +788,7 @@ static vm_fault_t ntfs_filemap_page_mkwrite(struct vm_fault *vmf)
 	struct address_space *mapping = inode->i_mapping;
 	vm_fault_t ret;
 
-	if (NInoWofCompressed(NTFS_I(inode)))
+	if (NInoCompressed(NTFS_I(inode)) || NInoWofCompressed(NTFS_I(inode)))
 		return VM_FAULT_SIGBUS;
 
 	sb_start_pagefault(inode->i_sb);
@@ -829,9 +829,6 @@ static int ntfs_file_mmap(struct file *file, struct vm_area_struct *vma)
 	if (NVolShutdown(NTFS_SB(file->f_mapping->host->i_sb)))
 		return -EIO;
 
-	if (NInoCompressed(NTFS_I(inode)) || NInoWofCompressed(NTFS_I(inode)))
-		return -EOPNOTSUPP;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 17, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 0, 0)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0)
@@ -846,7 +843,9 @@ static int ntfs_file_mmap(struct file *file, struct vm_area_struct *vma)
 #else
 	if ((vma->vm_flags & VM_SHARED) && (vma->vm_flags & VM_MAYWRITE)) {
 #endif
-		struct inode *inode = file_inode(file);
+		if (NInoCompressed(NTFS_I(inode)) || NInoWofCompressed(NTFS_I(inode)))
+			return -EOPNOTSUPP;
+
 		loff_t from, to;
 		int err;
 
