@@ -4299,7 +4299,7 @@ static int ntfs_attr_make_resident(struct ntfs_inode *ni, struct ntfs_attr_searc
 	if (err)
 		return err;
 
-	if (NInoCompressed(ni) || NInoEncrypted(ni)) {
+	if ((NInoCompressed(ni) || NInoEncrypted(ni)) && ni->type == AT_DATA) {
 		ntfs_debug("Making compressed or encrypted files resident is not implemented yet.\n");
 		return -EOPNOTSUPP;
 	}
@@ -4426,7 +4426,7 @@ static int ntfs_non_resident_attr_shrink(struct ntfs_inode *ni, const s64 newsiz
 	}
 
 	/* The first cluster outside the new allocation. */
-	if (NInoCompressed(ni))
+	if (NInoCompressed(ni) && ni->type == AT_DATA)
 		/*
 		 * For compressed files we must keep full compressions blocks,
 		 * but currently we do not decompress/recompress the last
@@ -4484,7 +4484,7 @@ static int ntfs_non_resident_attr_shrink(struct ntfs_inode *ni, const s64 newsiz
 		/* Prepare to mapping pairs update. */
 		ni->allocated_size = ntfs_cluster_to_bytes(vol, first_free_vcn);
 
-		if (NInoSparse(ni) || NInoCompressed(ni)) {
+		if ((NInoSparse(ni) || NInoCompressed(ni)) && ni->type == AT_DATA) {
 			if (nr_freed_clusters) {
 				ni->itype.compressed.size -=
 					ntfs_cluster_to_bytes(vol, nr_freed_clusters);
@@ -5180,12 +5180,12 @@ int ntfs_attr_truncate_i(struct ntfs_inode *ni, const s64 newsize, unsigned int 
 	 * Encrypted attributes are not supported. We return access denied,
 	 * which is what Windows NT4 does, too.
 	 */
-	if (NInoEncrypted(ni)) {
+	if (NInoEncrypted(ni) && ni->type == AT_DATA) {
 		pr_err("Failed to truncate encrypted attribute");
 		return -EACCES;
 	}
 
-	if (NInoCompressed(ni)) {
+	if (NInoCompressed(ni) && ni->type == AT_DATA) {
 		pr_err("Failed to truncate compressed attribute");
 		return -EOPNOTSUPP;
 	}
